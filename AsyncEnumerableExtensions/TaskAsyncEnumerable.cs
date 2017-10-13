@@ -6,11 +6,6 @@ using System.Threading.Tasks;
 
 namespace AsyncEnumerableExtensions
 {
-    public interface IAsyncEnumerableSink<in T>
-    {
-        Task Yield(T value);
-    }
-
     public class TaskAsyncEnumerable<T> : IAsyncEnumerable<T>
     {
 
@@ -129,9 +124,9 @@ namespace AsyncEnumerableExtensions
         private readonly SemaphoreSlim spaceSemaphore = new SemaphoreSlim(1, 1);
         private T item;
 
-        public async Task Yield(T value)
+        public async Task Yield(T value, CancellationToken cancellationToken)
         {
-            await spaceSemaphore.WaitAsync().ConfigureAwait(false);
+            await spaceSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             item = value;
             itemSemaphore.Release();
         }
