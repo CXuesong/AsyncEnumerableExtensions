@@ -1,8 +1,10 @@
 # AsyncEnumerableExtensions
 
+>   The package is available on NuGet as `CXuesong.AsyncEnumerableExtensions`.
+
 Some rudimentary utilities to flavor [`Ix.Async`](https://github.com/Reactive-Extensions/Rx.NET), such as…
 
-Build your asynchronous sequence, i.e. `IAsyncEnumerable<T>` implementation with asynchronous generator methods!
+Building your asynchronous sequence, i.e. `IAsyncEnumerable<T>` implementation with asynchronous generator methods!
 
 ```c#
 [Fact]
@@ -30,4 +32,4 @@ public async void NormalGeneratorTest()
 }
 ```
 
-For more usage examples, including cancellation support, see <UnitTestProject1/UnitTest1.cs>.
+For more usage examples, including cancellation support, see [`UnitTestProject1/UnitTest1.cs`](UnitTestProject1/UnitTest1.cs).
