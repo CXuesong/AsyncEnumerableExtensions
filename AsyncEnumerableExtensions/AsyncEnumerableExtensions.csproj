@@ -4,7 +4,7 @@
     <TargetFramework>netstandard1.1</TargetFramework>
     <PackageId>CXuesong.AsyncEnumerableExtensions</PackageId>
     <Authors>CXuesong</Authors>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Description>Some rudimentary utilities to flavor Ix.Async. Such as asynchronous generator methods.</Description>
     <RepositoryUrl>https://github.com/CXuesong/AsyncEnumerableExtensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -12,6 +12,7 @@
     <PackageLicenseUrl>https://github.com/CXuesong/AsyncEnumerableExtensions/blob/master/LICENSE.txt</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/CXuesong/AsyncEnumerableExtensions</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>../AsyncEnumerableExtensions.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>

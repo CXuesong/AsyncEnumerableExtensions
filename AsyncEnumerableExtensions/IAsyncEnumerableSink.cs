@@ -32,7 +32,7 @@ namespace AsyncEnumerableExtensions
         /// <param name="cancellationToken">The token used to cancel waiting.</param>
         /// <returns>A task that completes when the yielded item has been consumed.</returns>
         /// <exception cref="OperationCanceledException">The wait operation has been cancelled.</exception>
-        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
+        /// <exception cref="ObjectDisposedException">The sink does not accept items anymore.</exception>
         Task Wait(CancellationToken cancellationToken);
     }
 

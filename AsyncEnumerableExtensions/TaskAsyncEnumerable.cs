@@ -8,29 +8,26 @@ using System.Threading.Tasks;
 
 namespace AsyncEnumerableExtensions
 {
-    public class TaskAsyncEnumerable<T> : IAsyncEnumerable<T>
+    internal class TaskAsyncEnumerable<T> : IAsyncEnumerable<T>
     {
 
         private readonly Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator;
-        private readonly bool acceptsCancellationToken;
 
         public TaskAsyncEnumerable(Func<IAsyncEnumerableSink<T>, Task> sourceTask)
         {
             if (sourceTask == null) throw new ArgumentNullException(nameof(sourceTask));
             generator = (sink, ct) => sourceTask(sink);
-            acceptsCancellationToken = false;
         }
 
         public TaskAsyncEnumerable(Func<IAsyncEnumerableSink<T>, CancellationToken, Task> sourceTask)
         {
             this.generator = sourceTask ?? throw new ArgumentNullException(nameof(sourceTask));
-            acceptsCancellationToken = true;
         }
 
         /// <inheritdoc />
         public IAsyncEnumerator<T> GetEnumerator()
         {
-            return new Enumerator(generator, acceptsCancellationToken);
+            return new Enumerator(generator);
         }
 
         private class Enumerator : IAsyncEnumerator<T>
@@ -43,7 +40,7 @@ namespace AsyncEnumerableExtensions
             private CancellationToken lastMoveNextCancellationToken = CancellationToken.None;
             private CancellationTokenSource lastCombinedCancellationTokenSource;
 
-            public Enumerator(Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator, bool acceptsCancellationToken)
+            public Enumerator(Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator)
             {
                 Debug.Assert(generator != null);
                 this.generator = generator;
@@ -188,10 +185,11 @@ namespace AsyncEnumerableExtensions
 
         public Task Wait(CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+                return Task.Delay(-1, cancellationToken);
             lock (syncLock)
             {
-                if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
+                if (queue == null) return ObjectDisposedTask;
                 if (queue.Count == 0) return CompletedTask;
                 if (onQueueExhaustedTcs == null)
                 {
@@ -249,8 +247,8 @@ namespace AsyncEnumerableExtensions
         {
             lock (syncLock)
             {
-                onQueueExhaustedTcs?.TrySetCanceled();
-                onYieldTcs?.TrySetCanceled();
+                onQueueExhaustedTcs?.TrySetException(new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>)));
+                onYieldTcs?.TrySetException(new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>)));
                 onQueueExhaustedTcs = null;
                 onYieldTcs = null;
                 queue = null;
