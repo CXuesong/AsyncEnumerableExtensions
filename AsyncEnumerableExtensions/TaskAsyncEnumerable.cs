@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,19 +55,28 @@ namespace AsyncEnumerableExtensions
             public void Dispose()
             {
                 // Notify the cancellation.
-                taskCompletionTokenSource.Cancel();
                 if (lastCombinedCancellationTokenSource != taskCompletionTokenSource)
                     lastCombinedCancellationTokenSource.Dispose();
-                // Wait for the generator for a while before disposal.
-                buffer.Terminate();
-                if (acceptsCancellationToken && !generatorTask.IsCompleted) generatorTask.Wait(200);
+                taskCompletionTokenSource.Cancel();
                 taskCompletionTokenSource.Dispose();
-                // Final cleanup.
+                // Do cleanup.
+                buffer.Terminate();
                 lastCombinedCancellationTokenSource = null;
                 taskCompletionTokenSource = null;
                 lastMoveNextCancellationToken = CancellationToken.None;
                 buffer = null;
                 generatorTask = null;
+            }
+
+            private void PropagateGeneratorException()
+            {
+                if (generatorTask.Exception != null)
+                {
+                    if (generatorTask.Exception.InnerExceptions.Count == 1)
+                        ExceptionDispatchInfo.Capture(generatorTask.Exception.InnerExceptions[0]).Throw();
+                    else
+                        ExceptionDispatchInfo.Capture(generatorTask.Exception).Throw();
+                }
             }
 
             /// <inheritdoc />
@@ -89,7 +99,11 @@ namespace AsyncEnumerableExtensions
                     return true;
                 }
                 // Currently no items available.
-                if (generatorTask.IsCompleted) return false;
+                if (generatorTask.IsCompleted)
+                {
+                    PropagateGeneratorException();
+                    return false;
+                }
                 // Slow route
                 if (cancellationToken != lastMoveNextCancellationToken)
                 {
@@ -108,6 +122,7 @@ namespace AsyncEnumerableExtensions
                 catch (OperationCanceledException)
                 {
                     if (cancellationToken.IsCancellationRequested) throw;
+                    PropagateGeneratorException();
                     return false;
                 }
             }
@@ -127,14 +142,21 @@ namespace AsyncEnumerableExtensions
         private readonly object syncLock = new object();
 
         private static readonly Task CompletedTask = Task.FromResult(true);
-        private static readonly Task CancelledTask = Task.Delay(-1, new CancellationToken(true));
+        private static readonly Task ObjectDisposedTask;
+
+        static AsyncEnumerableBuffer()
+        {
+            var tcs = new TaskCompletionSource<bool>();
+            tcs.SetException(new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>)));
+            ObjectDisposedTask = tcs.Task;
+        }
 
         public void Yield(T item)
         {
             TaskCompletionSource<bool> localTask;
             lock (syncLock)
             {
-                if (queue == null) throw new OperationCanceledException();
+                if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
                 queue.Enqueue(item);
                 localTask = onYieldTcs;
                 // Note: We need to set onYieldTcs to null BEFORE calling TrySetResult,
@@ -152,7 +174,7 @@ namespace AsyncEnumerableExtensions
             var anyItem = false;
             lock (syncLock)
             {
-                if (queue == null) throw new OperationCanceledException();
+                if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
                 foreach (var i in items)
                 {
                     anyItem = true;
@@ -170,7 +192,7 @@ namespace AsyncEnumerableExtensions
             cancellationToken.ThrowIfCancellationRequested();
             lock (syncLock)
             {
-                if (queue == null) return CancelledTask;
+                if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
                 if (queue.Count == 0) return CompletedTask;
                 if (onQueueExhaustedTcs == null)
                 {
@@ -187,7 +209,7 @@ namespace AsyncEnumerableExtensions
             TaskCompletionSource<bool> localTask;
             lock (syncLock)
             {
-                if (queue == null) throw new OperationCanceledException();
+                if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
                 if (queue.Count > 0)
                 {
                     item = queue.Dequeue();
@@ -200,7 +222,7 @@ namespace AsyncEnumerableExtensions
             item = default(T);
             return false;
         }
-
+        
         internal async Task<T> Take(CancellationToken cancellationToken)
         {
             while (true)
@@ -209,7 +231,7 @@ namespace AsyncEnumerableExtensions
                 TaskCompletionSource<bool> localTask;
                 lock (syncLock)
                 {
-                    if (queue == null) throw new OperationCanceledException();
+                    if (queue == null) throw new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>));
                     if (queue.Count > 0) return queue.Dequeue();
                     if (onYieldTcs == null)
                         onYieldTcs = new TaskCompletionSource<bool>();
@@ -230,6 +252,8 @@ namespace AsyncEnumerableExtensions
             {
                 onQueueExhaustedTcs?.TrySetCanceled();
                 onYieldTcs?.TrySetCanceled();
+                onQueueExhaustedTcs = null;
+                onYieldTcs = null;
                 queue = null;
             }
         }

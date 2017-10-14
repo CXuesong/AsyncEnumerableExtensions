@@ -14,7 +14,8 @@ namespace AsyncEnumerableExtensions
         /// <summary>
         /// Yields a new item to the receiver. 
         /// </summary>
-        /// <param name="item"></param>
+        /// <param name="item">The new item yielded.</param>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         void Yield(T item);
 
         /// <summary>
@@ -22,6 +23,7 @@ namespace AsyncEnumerableExtensions
         /// </summary>
         /// <param name="items">The new items generated.</param>
         /// <exception cref="ArgumentNullException"><paramref name="items"/> is <c>null</c>.</exception>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         bool Yield(IEnumerable<T> items);
 
         /// <summary>
@@ -29,6 +31,8 @@ namespace AsyncEnumerableExtensions
         /// </summary>
         /// <param name="cancellationToken">The token used to cancel waiting.</param>
         /// <returns>A task that completes when the yielded item has been consumed.</returns>
+        /// <exception cref="OperationCanceledException">The wait operation has been cancelled.</exception>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         Task Wait(CancellationToken cancellationToken);
     }
 
@@ -39,6 +43,7 @@ namespace AsyncEnumerableExtensions
         /// <summary>
         /// Asynchronously waits for the consumer to exhaust all the yielded items.
         /// </summary>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         /// <returns>A task that completes when the yielded item has been consumed.</returns>
         public static Task Wait<T>(this IAsyncEnumerableSink<T> sink)
         {
@@ -50,6 +55,7 @@ namespace AsyncEnumerableExtensions
         /// </summary>
         /// <param name="sink">The sink to receive the new item.</param>
         /// <param name="item">The new item generated.</param>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         /// <returns>A task that completes when the yielded item has been consumed.</returns>
         public static Task YieldAndWait<T>(this IAsyncEnumerableSink<T> sink, T item)
         {
@@ -64,6 +70,7 @@ namespace AsyncEnumerableExtensions
         /// <param name="sink">The sink to receive the new item.</param>
         /// <param name="items">The new item generated.</param>
         /// <exception cref="ArgumentNullException"><paramref name="items"/> is <c>null</c>.</exception>
+        /// <exception cref="ObjectDisposedException">The sink does not accepts items anymore.</exception>
         /// <returns>A task that completes when the yielded item has been consumed.</returns>
         public static Task YieldAndWait<T>(this IAsyncEnumerableSink<T> sink, IEnumerable<T> items)
         {
