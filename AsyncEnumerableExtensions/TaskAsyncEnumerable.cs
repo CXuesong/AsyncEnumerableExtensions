@@ -37,7 +37,6 @@ namespace AsyncEnumerableExtensions
         {
 
             private readonly Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator;
-            private readonly bool acceptsCancellationToken;
             private Task generatorTask;
             private AsyncEnumerableBuffer<T> buffer;
             private CancellationTokenSource taskCompletionTokenSource;
@@ -48,12 +47,12 @@ namespace AsyncEnumerableExtensions
             {
                 Debug.Assert(generator != null);
                 this.generator = generator;
-                this.acceptsCancellationToken = acceptsCancellationToken;
             }
 
             /// <inheritdoc />
             public void Dispose()
             {
+                if (generatorTask == null) return;
                 // Notify the cancellation.
                 if (lastCombinedCancellationTokenSource != taskCompletionTokenSource)
                     lastCombinedCancellationTokenSource.Dispose();
