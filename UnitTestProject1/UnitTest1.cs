@@ -11,19 +11,39 @@ namespace UnitTestProject1
         [Fact]
         public async void Test1()
         {
+            var finished = false;
             async Task Generator(IAsyncEnumerableSink<int> sink)
             {
-                await sink.Yield(10);
-                await sink.Yield(20);
+                await sink.YieldAndWait(10);
+                await sink.YieldAndWait(20);
                 await Task.Delay(100);
-                await sink.Yield(30);
-                await sink.Yield(40);
+                await sink.YieldAndWait(30);
+                await sink.YieldAndWait(40);
                 await Task.Delay(100);
-                await sink.Yield(50);
+                await sink.YieldAndWait(50);
+                finished = true;
             }
 
-            Assert.Equal(new[] {10, 20, 30, 40, 50},
-                await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArray());
+            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArray();
+            Assert.True(finished);
+            Assert.Equal(new[] {10, 20, 30, 40, 50}, array);
         }
+
+        [Fact]
+        public async void Test2()
+        {
+            async Task Generator(IAsyncEnumerableSink<int> sink)
+            {
+                int value = 1;
+                NEXT:
+                value *= 2;
+                await sink.YieldAndWait(value);
+                goto NEXT;
+            }
+
+            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).Take(5).ToArray();
+            Assert.Equal(new[] {2, 4, 8, 16, 32}, array);
+        }
+
     }
 }

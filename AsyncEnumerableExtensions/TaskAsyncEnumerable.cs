@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -57,10 +58,10 @@ namespace AsyncEnumerableExtensions
                 if (lastCombinedCancellationTokenSource != taskCompletionTokenSource)
                     lastCombinedCancellationTokenSource.Dispose();
                 // Wait for the generator for a while before disposal.
+                buffer.Terminate();
                 if (acceptsCancellationToken && !generatorTask.IsCompleted) generatorTask.Wait(200);
                 taskCompletionTokenSource.Dispose();
                 // Final cleanup.
-                buffer.Dispose();
                 lastCombinedCancellationTokenSource = null;
                 taskCompletionTokenSource = null;
                 lastMoveNextCancellationToken = CancellationToken.None;
@@ -82,12 +83,12 @@ namespace AsyncEnumerableExtensions
                     lastCombinedCancellationTokenSource = taskCompletionTokenSource;
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                // Fast route
-                if (buffer.TryTake(out var value))
+                if (buffer.TryTake(out var cur))
                 {
-                    Current = value;
+                    Current = cur;
                     return true;
                 }
+                // Currently no items available.
                 if (generatorTask.IsCompleted) return false;
                 // Slow route
                 if (cancellationToken != lastMoveNextCancellationToken)
@@ -117,46 +118,122 @@ namespace AsyncEnumerableExtensions
 
     }
 
-    internal sealed class AsyncEnumerableBuffer<T> : IAsyncEnumerableSink<T>, IDisposable
+    internal sealed class AsyncEnumerableBuffer<T> : IAsyncEnumerableSink<T>
     {
 
-        private readonly SemaphoreSlim itemSemaphore = new SemaphoreSlim(0, 1);
-        private readonly SemaphoreSlim spaceSemaphore = new SemaphoreSlim(1, 1);
-        private T item;
+        private TaskCompletionSource<bool> onYieldTcs;
+        private TaskCompletionSource<bool> onQueueExhaustedTcs;
+        private Queue<T> queue = new Queue<T>();
+        private readonly object syncLock = new object();
 
-        public async Task Yield(T value, CancellationToken cancellationToken)
-        {
-            await spaceSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            item = value;
-            itemSemaphore.Release();
-        }
+        private static readonly Task CompletedTask = Task.FromResult(true);
+        private static readonly Task CancelledTask = Task.Delay(-1, new CancellationToken(true));
 
-        public bool TryTake(out T value)
+        public void Yield(T item)
         {
-            if (itemSemaphore.Wait(0))
+            TaskCompletionSource<bool> localTask;
+            lock (syncLock)
             {
-                value = item;
-                spaceSemaphore.Release();
-                return true;
+                if (queue == null) throw new OperationCanceledException();
+                queue.Enqueue(item);
+                localTask = onYieldTcs;
+                // Note: We need to set onYieldTcs to null BEFORE calling TrySetResult,
+                // because it will directly invoke continuation methods on caller's stack.
+                onYieldTcs = null;
             }
-            value = default(T);
-            return false;
-        }
-
-        public async Task<T> Take(CancellationToken cancellationToken)
-        {
-            await itemSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            var localItem = item;
-            spaceSemaphore.Release();
-            return localItem;
+            localTask?.TrySetResult(true);
         }
 
         /// <inheritdoc />
-        public void Dispose()
+        public bool Yield(IEnumerable<T> items)
         {
-            itemSemaphore.Dispose();
-            spaceSemaphore.Dispose();
+            if (items == null) throw new ArgumentNullException(nameof(items));
+            TaskCompletionSource<bool> localTask;
+            var anyItem = false;
+            lock (syncLock)
+            {
+                if (queue == null) throw new OperationCanceledException();
+                foreach (var i in items)
+                {
+                    anyItem = true;
+                    queue.Enqueue(i);
+                }
+                localTask = onYieldTcs;
+                onYieldTcs = null;
+            }
+            localTask?.TrySetResult(true);
+            return anyItem;
         }
+
+        public Task Wait(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (syncLock)
+            {
+                if (queue == null) return CancelledTask;
+                if (queue.Count == 0) return CompletedTask;
+                if (onQueueExhaustedTcs == null)
+                {
+                    onQueueExhaustedTcs = new TaskCompletionSource<bool>();
+                }
+                if (cancellationToken.CanBeCanceled)
+                    return Task.WhenAny(onQueueExhaustedTcs.Task, Task.Delay(-1, cancellationToken)).Unwrap();
+                return onQueueExhaustedTcs.Task;
+            }
+        }
+
+        internal bool TryTake(out T item)
+        {
+            TaskCompletionSource<bool> localTask;
+            lock (syncLock)
+            {
+                if (queue == null) throw new OperationCanceledException();
+                if (queue.Count > 0)
+                {
+                    item = queue.Dequeue();
+                    return true;
+                }
+                localTask = onQueueExhaustedTcs;
+                onQueueExhaustedTcs = null;
+            }
+            localTask?.TrySetResult(true);
+            item = default(T);
+            return false;
+        }
+
+        internal async Task<T> Take(CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                Task onYield;
+                TaskCompletionSource<bool> localTask;
+                lock (syncLock)
+                {
+                    if (queue == null) throw new OperationCanceledException();
+                    if (queue.Count > 0) return queue.Dequeue();
+                    if (onYieldTcs == null)
+                        onYieldTcs = new TaskCompletionSource<bool>();
+                    onYield = onYieldTcs.Task;
+                    localTask = onQueueExhaustedTcs;
+                    onQueueExhaustedTcs = null;
+                }
+                localTask?.TrySetResult(true);
+                // Wait for the generator yields.
+                var completedTask = await Task.WhenAny(onYield, Task.Delay(-1, cancellationToken)).ConfigureAwait(false);
+                if (completedTask != onYield) cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        internal void Terminate()
+        {
+            lock (syncLock)
+            {
+                onQueueExhaustedTcs?.TrySetCanceled();
+                onYieldTcs?.TrySetCanceled();
+                queue = null;
+            }
+        }
+
     }
 
 }
