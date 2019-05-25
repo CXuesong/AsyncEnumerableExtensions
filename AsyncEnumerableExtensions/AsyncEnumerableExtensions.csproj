@@ -9,7 +9,6 @@
     <RepositoryUrl>https://github.com/CXuesong/AsyncEnumerableExtensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReleaseNotes>See https://github.com/CXuesong/AsyncEnumerableExtensions/releases .</PackageReleaseNotes>
-    <PackageLicenseUrl></PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/CXuesong/AsyncEnumerableExtensions</PackageProjectUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
