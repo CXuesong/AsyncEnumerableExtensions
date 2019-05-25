@@ -1,12 +1,10 @@
+[CXuesong.AsyncEnumerableExtensions](https://www.nuget.org/packages/CXuesong.AsyncEnumerableExtensions) | ![NuGet version (CXuesong.AsyncEnumerableExtensions)](https://img.shields.io/nuget/vpre/CXuesong.AsyncEnumerableExtensions.svg?style=flat-square) ![NuGet version (CXuesong.AsyncEnumerableExtensions)](https://img.shields.io/nuget/dt/CXuesong.AsyncEnumerableExtensions.svg?style=flat-square)
+
 # AsyncEnumerableExtensions
 
->   The package is available on NuGet as `CXuesong.AsyncEnumerableExtensions`.
->
->   As of May, 2019, there is `IAsyncEnumerable` on .NET Standard 2.1 / .NET Core 3.0. Thus this package uses built-in `IAsyncEnumerable` instead of the one in `Ix.Async` on these supporting platform. Note that prior platform versions will still target to `Ix.Async`.
+>   As of May, 2019, there is `IAsyncEnumerable` on .NET Standard 2.1 / .NET Core 3.0. Thus this package uses built-in `IAsyncEnumerable` instead of the one in `Ix.Async` on these supporting platform. Note that on .NET Standard 1.1, this package will still target to `Ix.Async`.
 
-Some rudimentary utilities to flavor [`Ix.Async`](https://github.com/Reactive-Extensions/Rx.NET), such as…
-
-Building your asynchronous sequence, i.e. `IAsyncEnumerable<T>` implementation with asynchronous generator methods!
+Building your asynchronous sequence, i.e. `IAsyncEnumerable<T>` implementation with asynchronous generator methods! This helper package let you write one generator function, and it's compatible with both .NET Standard 1.1 and .NET Standard 2.1.
 
 ```c#
 [Fact]
