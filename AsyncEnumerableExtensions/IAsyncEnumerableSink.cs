@@ -36,6 +36,9 @@ namespace AsyncEnumerableExtensions
         Task Wait(CancellationToken cancellationToken);
     }
 
+    /// <summary>
+    /// Extension methods for <see cref="IAsyncEnumerableSink{T}"/>.
+    /// </summary>
     public static class AsyncEnumerableSinkExtensions
     {
         private static readonly Task<bool> CompletedTask = Task.FromResult(true);

@@ -29,7 +29,7 @@ namespace UnitTestProject1
                 finished = true;
             }
 
-            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArray();
+            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArrayAsync();
             Assert.True(finished);
             Assert.Equal(new[] {10, 20, 30, 40, 50}, array);
         }
@@ -47,7 +47,7 @@ namespace UnitTestProject1
                 goto NEXT;
             }
 
-            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).Take(5).ToArray();
+            var array = await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).Take(5).ToArrayAsync();
             Assert.Equal(new[] {2, 4, 8, 16, 32}, array);
         }
 
@@ -73,9 +73,9 @@ namespace UnitTestProject1
                 throw new InvalidDataException();
             }
 
-            Assert.Equal(new[] {10, 20}, await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).Take(2).ToArray());
+            Assert.Equal(new[] {10, 20}, await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).Take(2).ToArrayAsync());
             await Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArray());
+                await AsyncEnumerableFactory.FromAsyncGenerator<int>(Generator).ToArrayAsync());
         }
 
     }

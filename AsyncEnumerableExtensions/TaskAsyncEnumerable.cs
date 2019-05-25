@@ -24,11 +24,19 @@ namespace AsyncEnumerableExtensions
             this.generator = sourceTask ?? throw new ArgumentNullException(nameof(sourceTask));
         }
 
+#if CLR_FEATURE_ASYNC_STREAM
+        /// <inheritdoc />
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            return new Enumerator(generator, cancellationToken);
+        }
+#else
         /// <inheritdoc />
         public IAsyncEnumerator<T> GetEnumerator()
         {
             return new Enumerator(generator);
         }
+#endif
 
         private class Enumerator : IAsyncEnumerator<T>
         {
@@ -40,16 +48,33 @@ namespace AsyncEnumerableExtensions
             private CancellationToken lastMoveNextCancellationToken = CancellationToken.None;
             private CancellationTokenSource lastCombinedCancellationTokenSource;
 
+#if CLR_FEATURE_ASYNC_STREAM
+            private readonly CancellationToken cancellationToken;
+            public Enumerator(Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator, CancellationToken cancellationToken)
+            {
+                Debug.Assert(generator != null);
+                this.generator = generator;
+                this.cancellationToken = cancellationToken;
+            }
+#else
             public Enumerator(Func<IAsyncEnumerableSink<T>, CancellationToken, Task> generator)
             {
                 Debug.Assert(generator != null);
                 this.generator = generator;
             }
+#endif
 
+#if CLR_FEATURE_ASYNC_STREAM
+            /// <inheritdoc />
+            public ValueTask DisposeAsync()
+            {
+                if (generatorTask == null) return new ValueTask();
+#else
             /// <inheritdoc />
             public void Dispose()
             {
                 if (generatorTask == null) return;
+#endif
                 // Notify the cancellation.
                 if (lastCombinedCancellationTokenSource != taskCompletionTokenSource)
                     lastCombinedCancellationTokenSource.Dispose();
@@ -62,6 +87,9 @@ namespace AsyncEnumerableExtensions
                 lastMoveNextCancellationToken = CancellationToken.None;
                 buffer = null;
                 generatorTask = null;
+#if CLR_FEATURE_ASYNC_STREAM
+                return new ValueTask();
+#endif
             }
 
             private void PropagateGeneratorException()
@@ -75,8 +103,12 @@ namespace AsyncEnumerableExtensions
                 }
             }
 
+#if CLR_FEATURE_ASYNC_STREAM
+            public async ValueTask<bool> MoveNextAsync()
+#else
             /// <inheritdoc />
             public async Task<bool> MoveNext(CancellationToken cancellationToken)
+#endif
             {
                 if (generatorTask == null)
                 {
@@ -125,6 +157,7 @@ namespace AsyncEnumerableExtensions
 
             /// <inheritdoc />
             public T Current { get; private set; }
+
         }
 
     }
@@ -219,7 +252,7 @@ namespace AsyncEnumerableExtensions
             item = default(T);
             return false;
         }
-        
+
         internal async Task<T> Take(CancellationToken cancellationToken)
         {
             while (true)
