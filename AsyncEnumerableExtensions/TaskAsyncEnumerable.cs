@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
@@ -170,14 +169,14 @@ namespace AsyncEnumerableExtensions
         private Queue<T> queue = new Queue<T>();
         private readonly object syncLock = new object();
 
-        private static readonly Task CompletedTask = Task.FromResult(true);
-        private static readonly Task ObjectDisposedTask;
+        private static readonly Task completedTask = Task.FromResult(true);
+        private static readonly Task objectDisposedTask;
 
         static AsyncEnumerableBuffer()
         {
             var tcs = new TaskCompletionSource<bool>();
             tcs.SetException(new ObjectDisposedException(nameof(AsyncEnumerableBuffer<T>)));
-            ObjectDisposedTask = tcs.Task;
+            objectDisposedTask = tcs.Task;
         }
 
         public void Yield(T item)
@@ -222,8 +221,8 @@ namespace AsyncEnumerableExtensions
                 return Task.Delay(-1, cancellationToken);
             lock (syncLock)
             {
-                if (queue == null) return ObjectDisposedTask;
-                if (queue.Count == 0) return CompletedTask;
+                if (queue == null) return objectDisposedTask;
+                if (queue.Count == 0) return completedTask;
                 if (onQueueExhaustedTcs == null)
                 {
                     onQueueExhaustedTcs = new TaskCompletionSource<bool>();
@@ -249,11 +248,15 @@ namespace AsyncEnumerableExtensions
                 onQueueExhaustedTcs = null;
             }
             localTask?.TrySetResult(true);
-            item = default(T);
+            item = default;
             return false;
         }
 
+#if NETSTANDARD2_1
+        internal async ValueTask<T> Take(CancellationToken cancellationToken)
+#else
         internal async Task<T> Take(CancellationToken cancellationToken)
+#endif
         {
             while (true)
             {
